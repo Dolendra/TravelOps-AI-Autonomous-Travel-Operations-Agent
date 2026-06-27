@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: travelops-backend
+  labels:
+    app: travelops-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: travelops-backend
+  template:
+    metadata:
+      labels:
+        app: travelops-backend
+    spec:
+      containers:
+      - name: backend
+        image: travelops-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        env:
+        - name: GROQ_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: groq-api-secret
+              key: api-key
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 250m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: travelops-backend-service
+spec:
+  selector:
+    app: travelops-backend
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP

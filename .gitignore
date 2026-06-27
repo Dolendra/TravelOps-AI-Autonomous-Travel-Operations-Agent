@@ -1,0 +1,35 @@
+# Python virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python cache & compiler files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Javascript/Node dependencies and builds
+frontend/node_modules/
+frontend/dist/
+frontend/.cache/
+
+# Local database files
+*.db
+*.db-journal
+*.db-wal
+*.sqlite3
+
+# IDEs & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Environments & secrets
+.env
+.env.*
+kubernetes/secrets.yaml

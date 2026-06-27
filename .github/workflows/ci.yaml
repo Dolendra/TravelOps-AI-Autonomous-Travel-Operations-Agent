@@ -1,0 +1,66 @@
+name: TravelOps AI CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      # Optional: In production we could spin up redis/postgres, but we use sqlite/memory for testing
+      sqlite:
+        image: alpine:latest
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v3
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
+
+    - name: Run Unit Tests
+      env:
+        DATABASE_URL: sqlite:///:memory:
+        JWT_SECRET_KEY: test-ci-secret-key-12345
+      run: |
+        python -m unittest discover tests
+
+    - name: Run AI Evaluation Pipeline
+      env:
+        DATABASE_URL: sqlite:///:memory:
+        JWT_SECRET_KEY: test-ci-secret-key-12345
+        GROQ_API_KEY: mock-ci-unauthorized-key
+      run: |
+        python tests/eval_runner.py
+
+  docker-build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Build Backend Docker Image
+      run: |
+        docker build -f docker/Dockerfile.backend -t travelops-backend:latest .
+
+    - name: Build Frontend Docker Image
+      run: |
+        docker build -f docker/Dockerfile.frontend -t travelops-frontend:latest .

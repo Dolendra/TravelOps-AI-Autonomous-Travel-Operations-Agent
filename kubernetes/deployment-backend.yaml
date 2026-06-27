@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: travelops-backend
+  namespace: default
+  labels:
+    app: travelops-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: travelops-backend
+  template:
+    metadata:
+      labels:
+        app: travelops-backend
+    spec:
+      containers:
+      - name: backend
+        image: travelops-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        resources:
+          limits:
+            cpu: "1.0"
+            memory: 512Mi
+          requests:
+            cpu: "0.5"
+            memory: 256Mi
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: travelops-secrets
+              key: database-url
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: travelops-secrets
+              key: jwt-secret-key
+        - name: GROQ_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: travelops-secrets
+              key: groq-api-key
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10

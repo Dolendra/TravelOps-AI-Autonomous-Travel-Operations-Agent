@@ -1,0 +1,53 @@
+{
+  "summary": {
+    "timestamp": 1782558245.3523076,
+    "total_cases": 5,
+    "intent_accuracy_pct": 100.0,
+    "entity_accuracy_pct": 100.0,
+    "workflow_success_rate_pct": 100.0,
+    "avg_latency_sec": 0.175,
+    "total_cost_usd": 0.0
+  },
+  "cases": [
+    {
+      "query": "I want to search for sleeper buses from Bangalore to Chennai on 2026-06-29",
+      "intent_ok": true,
+      "entity_ok": true,
+      "workflow_ok": true,
+      "latency_sec": 0.5323324203491211,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "query": "Please confirm my held booking 123",
+      "intent_ok": true,
+      "entity_ok": true,
+      "workflow_ok": true,
+      "latency_sec": 0.0700070858001709,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "query": "Cancel my booking with PNR B12345",
+      "intent_ok": true,
+      "entity_ok": true,
+      "workflow_ok": true,
+      "latency_sec": 0.07840991020202637,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "query": "Is my bus on time for PNR AX9212?",
+      "intent_ok": true,
+      "entity_ok": true,
+      "workflow_ok": true,
+      "latency_sec": 0.09808778762817383,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "query": "Hello there, can you help me?",
+      "intent_ok": true,
+      "entity_ok": true,
+      "workflow_ok": true,
+      "latency_sec": 0.09604835510253906,
+      "estimated_cost_usd": 0.0
+    }
+  ]
+}
