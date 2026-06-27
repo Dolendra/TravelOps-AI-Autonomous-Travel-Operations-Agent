@@ -24,7 +24,8 @@ from backend.tools.registry import ToolRegistry
 from agents.intent.intent_agent import IntentAgent
 from agents.planner.planner_agent import PlannerAgent
 from agents.memory.memory_agent import MemoryAgent
-from backend.workflows.orchestrator import WorkflowOrchestrator
+from backend.runtime.workflow.executor import WorkflowExecutor as WorkflowOrchestrator
+from backend.runtime.context.builder import PromptContextBuilder
 from backend.services.guardrails import GuardrailsProcessor
 from backend.services.rag import RAGEngine
 import backend.tools.travel_tools
@@ -34,9 +35,36 @@ logger = logging.getLogger("travelops.api.main")
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
-    title="TravelOps AI – Autonomous Travel Operations Platform Gateway",
-    description="Phase 1 Core Infrastructure Gateway",
-    version="1.0.0"
+    title="TravelOps AI – Autonomous Travel Operations Platform (Production v2.0)",
+    description=(
+        "Enterprise-grade production release gateway for TravelOps AI. "
+        "Includes Intent Runtime, Declarative Workflows, Saga Transaction rollbacks, "
+        "Real-World Integrations (Maps & Weather API), SMTP/Twilio Notifications Gateway, "
+        "and LLM-powered context cached generation with explanation engine."
+    ),
+    version="2.0.0",
+    license_info={
+        "name": "Apache 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+    },
+    openapi_tags=[
+        {
+            "name": "Auth",
+            "description": "User authentication, JWT login/registration, role management, and validation.",
+        },
+        {
+            "name": "Core",
+            "description": "Autonomous travel planner, intent resolution engine, memory context manager, and dynamic prompt orchestration.",
+        },
+        {
+            "name": "Workflow",
+            "description": "DAG Compiler, task-level execution graph runner, reflection agent, and manual operator approval portals.",
+        },
+        {
+            "name": "Telemetry",
+            "description": "Audit trail events logs, real-time status feeds, database transactional diagnostics, and Prometheus runtime metrics.",
+        }
+    ]
 )
 
 # CORS middleware for React + Vite Frontend connection
@@ -145,6 +173,22 @@ def startup_event():
 model_router = ModelRouter()
 prompt_loader = PromptLoader()
 
+from backend.runtime.agent_runtime import AgentRuntime
+from agents.intent.intent_agent import IntentAgent
+from agents.planner.planner_agent import PlannerAgent
+from agents.memory.memory_agent import MemoryAgent
+from agents.monitor.journey_monitor import JourneyMonitor
+from agents.recovery.recovery_agent import RecoveryAgent
+from agents.reflection.reflection_agent import ReflectionAgent
+
+agent_runtime = AgentRuntime(model_router, prompt_loader)
+agent_runtime.register_agent("IntentAgent", "2.0.0", ["intent"], IntentAgent(model_router, prompt_loader))
+agent_runtime.register_agent("PlannerAgent", "2.0.0", ["plan", "compile"], PlannerAgent(model_router, prompt_loader))
+agent_runtime.register_agent("MemoryAgent", "2.0.0", ["memory"], MemoryAgent(model_router, prompt_loader))
+agent_runtime.register_agent("JourneyMonitor", "2.0.0", ["monitor"], JourneyMonitor)
+agent_runtime.register_agent("RecoveryAgent", "2.0.0", ["recovery"], RecoveryAgent)
+agent_runtime.register_agent("ReflectionAgent", "2.0.0", ["reflection"], ReflectionAgent(model_router, prompt_loader))
+
 # Helper to convert naive UTC datetimes to timezone-explicit strings
 def to_iso_utc(dt):
     if dt is None:
@@ -165,6 +209,9 @@ class ExecuteTaskRequest(BaseModel):
 class PublishEventRequest(BaseModel):
     event_type: str
     payload: Dict[str, Any]
+
+class ApproveRequest(BaseModel):
+    task_id: str
 
 
 # 1. Health Endpoint
@@ -348,8 +395,10 @@ def send_message(session_id: str, req: MessageRequest, db: Session = Depends(get
     db.add(user_log)
     db.commit()
     
+    context_builder = PromptContextBuilder(model_router, prompt_loader)
+    
     # Extract and save user preferences to Memory
-    memory_agent = MemoryAgent(model_router, prompt_loader)
+    memory_agent = agent_runtime.get_agent_by_capability("memory")
     memory_agent.save_preference(session_id, sanitized_message)
 
     # Get current time for prompt resolution
@@ -357,7 +406,7 @@ def send_message(session_id: str, req: MessageRequest, db: Session = Depends(get
     curr_date = now.strftime("%Y-%m-%d")
     
     # 2. Run Modular Intent Agent
-    intent_agent = IntentAgent(model_router, prompt_loader)
+    intent_agent = agent_runtime.get_agent_by_capability("intent")
     intent_data = intent_agent.parse_intent(sanitized_message)
     
     # Fallback to local parsing if LLM call yields empty dict
@@ -415,8 +464,8 @@ def send_message(session_id: str, req: MessageRequest, db: Session = Depends(get
                 pref_list.append(f"seat: {prefs['seat_preference']}")
             pref_str = ", ".join(pref_list) if pref_list else "highest_rating"
 
-            planner = PlannerAgent(model_router, prompt_loader)
-            task_graph = planner.generate_plan(origin, destination, travel_date or curr_date, pref_str)
+            planner = agent_runtime.get_agent_by_capability("plan")
+            task_graph = planner.generate_plan(origin, destination, travel_date or curr_date, pref_str, session_id=session_id)
             
             if not task_graph or "tasks" not in task_graph:
                 logger.warning("Planner Agent yielded empty graph, falling back to mock planner.")
@@ -460,18 +509,21 @@ def send_message(session_id: str, req: MessageRequest, db: Session = Depends(get
                 assistant_response = "Hello! I am TravelOps AI, your travel assistant. How can I help you check bus availability, book tickets, or track your journey today?"
         else:
             try:
-                support_prompt = prompt_loader.load_prompt("support", {})
-                if context:
-                    support_prompt = (
-                        f"{support_prompt}\n\n"
-                        "Use the following relevant context from our travel policies FAQ to answer passenger query:\n"
-                        f"--- FAQ CONTEXT ---\n{context}\n--------------------\n\n"
-                        "Verify and answer the passenger question using only the FAQ context rules where applicable."
-                    )
-                chat_messages = [
-                    {"role": "system", "content": support_prompt},
-                    {"role": "user", "content": req.message}
-                ]
+                # Retrieve conversation history logs for Working Memory context
+                history_logs = db.query(AuditLogModel).filter(
+                    AuditLogModel.session_id == session_id,
+                    AuditLogModel.action == "message"
+                ).order_by(AuditLogModel.created_at.asc()).all()
+                
+                chat_history = []
+                for log in history_logs:
+                    role = "Assistant" if log.agent_name == "Assistant" else "User"
+                    chat_history.append({"sender": role, "message": log.reasoning_summary or ""})
+
+                # Build support messages using PromptContextBuilder
+                context_bundle = context_builder.build_context("support", session_id, sanitized_message, chat_history)
+                chat_messages = context_bundle.messages
+
                 c_res = model_router.generate(
                     messages=chat_messages,
                     capability="fast"
@@ -509,6 +561,16 @@ def send_message(session_id: str, req: MessageRequest, db: Session = Depends(get
 @app.get("/api/tools")
 def list_registered_tools():
     return {"tools": ToolRegistry.list_tools()}
+
+
+@app.post("/api/sessions/{session_id}/approve")
+async def approve_session_task(session_id: str, req: ApproveRequest, current_user: UserModel = Depends(require_role("operator"))):
+    from backend.runtime.workflow.runtime import WorkflowRuntime
+    res = await WorkflowRuntime.approve_task(session_id, req.task_id)
+    if res.get("success"):
+        return res
+    else:
+        raise HTTPException(status_code=400, detail=res.get("error"))
 
 
 @app.post("/api/sessions/{session_id}/execute-task")
@@ -655,9 +717,27 @@ def mock_planner(entities: Dict[str, Any]) -> Dict[str, Any]:
                 }
             },
             {
+                "task_id": "route_1",
+                "name": "get_route_details",
+                "dependencies": [],
+                "input_data": {
+                    "origin": origin,
+                    "destination": destination
+                }
+            },
+            {
+                "task_id": "weather_1",
+                "name": "get_weather_forecast",
+                "dependencies": [],
+                "input_data": {
+                    "destination": destination,
+                    "travel_date": travel_date
+                }
+            },
+            {
                 "task_id": "recommend_1",
                 "name": "recommend_options",
-                "dependencies": ["search_1"],
+                "dependencies": ["search_1", "route_1", "weather_1"],
                 "input_data": {
                     "preference": "highest_rating"
                 }

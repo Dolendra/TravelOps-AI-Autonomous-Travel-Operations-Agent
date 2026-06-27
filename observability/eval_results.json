@@ -1,11 +1,11 @@
 {
   "summary": {
-    "timestamp": 1782558245.3523076,
+    "timestamp": 1782572966.5937295,
     "total_cases": 5,
     "intent_accuracy_pct": 100.0,
     "entity_accuracy_pct": 100.0,
     "workflow_success_rate_pct": 100.0,
-    "avg_latency_sec": 0.175,
+    "avg_latency_sec": 0.138,
     "total_cost_usd": 0.0
   },
   "cases": [
@@ -14,7 +14,7 @@
       "intent_ok": true,
       "entity_ok": true,
       "workflow_ok": true,
-      "latency_sec": 0.5323324203491211,
+      "latency_sec": 0.34561800956726074,
       "estimated_cost_usd": 0.0
     },
     {
@@ -22,7 +22,7 @@
       "intent_ok": true,
       "entity_ok": true,
       "workflow_ok": true,
-      "latency_sec": 0.0700070858001709,
+      "latency_sec": 0.07323670387268066,
       "estimated_cost_usd": 0.0
     },
     {
@@ -30,7 +30,7 @@
       "intent_ok": true,
       "entity_ok": true,
       "workflow_ok": true,
-      "latency_sec": 0.07840991020202637,
+      "latency_sec": 0.07356095314025879,
       "estimated_cost_usd": 0.0
     },
     {
@@ -38,7 +38,7 @@
       "intent_ok": true,
       "entity_ok": true,
       "workflow_ok": true,
-      "latency_sec": 0.09808778762817383,
+      "latency_sec": 0.12373685836791992,
       "estimated_cost_usd": 0.0
     },
     {
@@ -46,7 +46,7 @@
       "intent_ok": true,
       "entity_ok": true,
       "workflow_ok": true,
-      "latency_sec": 0.09604835510253906,
+      "latency_sec": 0.0733182430267334,
       "estimated_cost_usd": 0.0
     }
   ]

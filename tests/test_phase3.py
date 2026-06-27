@@ -15,7 +15,7 @@ from backend.services.prompt_loader import PromptLoader
 from agents.planner.planner_agent import PlannerAgent
 from agents.memory.memory_agent import MemoryAgent
 from agents.reflection.reflection_agent import ReflectionAgent
-from backend.workflows.orchestrator import WorkflowOrchestrator
+from backend.runtime.workflow.executor import WorkflowExecutor as WorkflowOrchestrator
 import backend.tools.travel_tools
 
 

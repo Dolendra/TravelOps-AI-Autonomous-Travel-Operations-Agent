@@ -4,18 +4,22 @@ description: Search for recovery alternatives upon delay or cancellation alert, 
 tasks:
   - task_id: recovery_1
     name: find_recovery_options
+    timeout: 8s
     dependencies: []
     input_data:
       pnr: "${pnr}"
       original_bus_id: "${bus_id}"
   - task_id: recommend_1
     name: recommend_options
+    timeout: 5s
     dependencies:
       - recovery_1
     input_data:
       preferences: "highest_rating"
   - task_id: hold_1
     name: hold_seat
+    retry: 2
+    rollback: release_seat
     dependencies:
       - recommend_1
     input_data:
@@ -23,6 +27,8 @@ tasks:
       seat_number: "${new_seat_number}"
   - task_id: payment_1
     name: process_payment
+    timeout: 10s
+    retry: 1
     dependencies:
       - hold_1
     input_data:
@@ -30,6 +36,8 @@ tasks:
       idempotency_key: "${idempotency_key}"
   - task_id: confirm_1
     name: confirm_booking
+    timeout: 5s
+    retry: 1
     dependencies:
       - payment_1
     input_data:
@@ -37,6 +45,7 @@ tasks:
       idempotency_key: "${idempotency_key}"
   - task_id: notify_1
     name: send_notification
+    timeout: 5s
     dependencies:
       - confirm_1
     input_data:

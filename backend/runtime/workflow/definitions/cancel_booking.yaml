@@ -4,11 +4,13 @@ description: Cancel an active reservation, release locked seats, trigger policy-
 tasks:
   - task_id: cancel_1
     name: cancel_booking
+    timeout: 5s
     dependencies: []
     input_data:
       pnr: "${pnr}"
   - task_id: notify_1
     name: send_notification
+    timeout: 5s
     dependencies:
       - cancel_1
     input_data:

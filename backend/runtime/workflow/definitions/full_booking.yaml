@@ -4,19 +4,42 @@ description: Complete end-to-end travel booking journey including seat selection
 tasks:
   - task_id: search_1
     name: search_buses
+    timeout: 8s
+    retry: 1
     dependencies: []
     input_data:
       origin: "${origin}"
       destination: "${destination}"
       travel_date: "${travel_date}"
+  - task_id: route_1
+    name: get_route_details
+    timeout: 8s
+    retry: 2
+    dependencies: []
+    input_data:
+      origin: "${origin}"
+      destination: "${destination}"
+  - task_id: weather_1
+    name: get_weather_forecast
+    timeout: 8s
+    retry: 2
+    dependencies: []
+    input_data:
+      destination: "${destination}"
+      travel_date: "${travel_date}"
   - task_id: recommend_1
     name: recommend_options
+    timeout: 5s
     dependencies:
       - search_1
+      - route_1
+      - weather_1
     input_data:
       preferences: "${preferences}"
   - task_id: hold_1
     name: hold_seat
+    retry: 2
+    rollback: release_seat
     dependencies:
       - recommend_1
     input_data:
@@ -24,13 +47,18 @@ tasks:
       seat_number: "${seat_number}"
   - task_id: payment_1
     name: process_payment
+    timeout: 10s
+    retry: 1
     dependencies:
       - hold_1
     input_data:
       amount: "${amount}"
+      card_number: "${card_number}"
       idempotency_key: "${idempotency_key}"
   - task_id: confirm_1
     name: confirm_booking
+    timeout: 5s
+    retry: 1
     dependencies:
       - payment_1
     input_data:
@@ -38,6 +66,7 @@ tasks:
       idempotency_key: "${idempotency_key}"
   - task_id: notify_1
     name: send_notification
+    timeout: 5s
     dependencies:
       - confirm_1
     input_data:

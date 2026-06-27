@@ -11,6 +11,8 @@ from backend.database.db import SessionLocal
 from backend.database.models import (
     BusInventoryModel, BookingModel, CacheModel, TaskStateModel
 )
+from backend.services.maps import MapsService
+from backend.services.weather import WeatherService
 
 logger = logging.getLogger("travelops.tools.travel_tools")
 
@@ -77,31 +79,10 @@ class SearchBusTool(BaseTool):
                 buses = json.loads(cache_entry.value)
                 return {"success": True, "buses": buses, "cache_hit": True}
 
-            # 2. Query Database
-            logger.info(f"Cache miss. Querying DB for {origin} to {destination} on {travel_date}")
-            query = db.query(BusInventoryModel).filter(
-                func.lower(BusInventoryModel.origin) == origin.lower(),
-                func.lower(BusInventoryModel.destination) == destination.lower()
-            )
-            results = query.all()
-            
-            buses = []
-            for bus in results:
-                buses.append({
-                    "bus_id": bus.id,
-                    "operator_name": bus.operator_name,
-                    "bus_type": bus.bus_type,
-                    "departure_time": bus.departure_time,
-                    "arrival_time": bus.arrival_time,
-                    "duration": bus.duration,
-                    "origin": bus.origin,
-                    "destination": bus.destination,
-                    "fare": bus.fare,
-                    "rating": bus.rating,
-                    "available_seats": bus.available_seats,
-                    "seat_layout": bus.get_seat_layout(),
-                    "travel_date": travel_date  # dynamically map to query date
-                })
+            # 2. Query Provider Router
+            from backend.providers.router import ProviderRouter
+            logger.info(f"Cache miss. Routing search query via ProviderRouter for {origin} to {destination} on {travel_date}")
+            buses = ProviderRouter().search_buses(origin, destination, travel_date)
 
             # 3. Store in Cache
             expires = datetime.utcnow() + timedelta(minutes=5)
@@ -234,63 +215,18 @@ class HoldSeatTool(BaseTool):
             if not bus_id:
                 return {"success": False, "error": "Missing required parameter: 'bus_id'."}
 
-            # Query the bus run
-            bus = db.query(BusInventoryModel).filter(BusInventoryModel.id == bus_id).first()
-            if not bus:
-                return {"success": False, "error": f"Bus run with ID {bus_id} not found."}
-
-            # If seat number is not specified, dynamically select the first available seat
-            if not seat_number:
-                # Find all reserved seats for this bus
-                reserved_bookings = db.query(BookingModel).filter(
-                    BookingModel.bus_id == bus_id,
-                    BookingModel.status.in_(["HELD", "CONFIRMED"])
-                ).all()
-                reserved_seats = {b.seat_number for b in reserved_bookings}
-                
-                # Get total seat layout
-                try:
-                    layout = bus.get_seat_layout()
-                except Exception:
-                    layout = ["1A", "1B", "2A", "2B", "3A", "3B"]
-                
-                # Find first unreserved seat
-                available_seat = None
-                for seat in layout:
-                    if seat not in reserved_seats:
-                        available_seat = seat
-                        break
-                
-                if not available_seat:
-                    return {"success": False, "error": f"No available seats remaining on bus {bus_id}."}
-                seat_number = available_seat
-            # Check if seat is already booked/held
-            existing_booking = db.query(BookingModel).filter(
-                BookingModel.bus_id == bus_id,
-                BookingModel.seat_number == seat_number,
-                BookingModel.status.in_(["HELD", "CONFIRMED"])
-            ).first()
-            if existing_booking:
-                return {"success": False, "error": f"Seat {seat_number} is already reserved on bus {bus_id}."}
-
-            # Create Held Booking
-            new_booking = BookingModel(
-                session_id=session_id,
+            from backend.providers.router import ProviderRouter
+            logger.info(f"Routing hold_seat request via ProviderRouter for bus {bus_id}")
+            res = ProviderRouter().hold_seat(
                 bus_id=bus_id,
                 seat_number=seat_number,
-                status="HELD",
                 passenger_name=passenger_name,
                 passenger_email=passenger_email,
-                price_paid=bus.fare
+                session_id=session_id
             )
-            db.add(new_booking)
             
-            # Decrement seats available
-            if bus.available_seats > 0:
-                bus.available_seats -= 1
-                
-            db.commit()
-            db.refresh(new_booking)
+            if not res.get("success"):
+                return res
 
             # Update task output
             task = db.query(TaskStateModel).filter(
@@ -299,23 +235,10 @@ class HoldSeatTool(BaseTool):
             ).first()
             if task:
                 task.status = "COMPLETED"
-                task.set_output({
-                    "booking_id": new_booking.id,
-                    "status": new_booking.status,
-                    "fare": bus.fare,
-                    "seat_number": seat_number,
-                    "operator_name": bus.operator_name
-                })
+                task.set_output(res)
                 db.commit()
 
-            return {
-                "success": True,
-                "booking_id": new_booking.id,
-                "status": "HELD",
-                "seat_number": seat_number,
-                "fare": bus.fare,
-                "operator_name": bus.operator_name
-            }
+            return res
         except Exception as e:
             db.rollback()
             logger.error(f"HoldSeatTool execution error: {e}")
@@ -348,9 +271,10 @@ class ProcessPaymentTool(BaseTool):
             db = SessionLocal()
             try:
                 if idempotency_key:
-                    cached = get_idempotent_result(db, idempotency_key)
+                    pay_idem_key = f"payment:{idempotency_key}"
+                    cached = get_idempotent_result(db, pay_idem_key)
                     if cached:
-                        logger.info(f"ProcessPaymentTool: Found idempotent cached response for key: {idempotency_key}")
+                        logger.info(f"ProcessPaymentTool: Found idempotent cached response for key: {pay_idem_key}")
                         return cached
 
                 # Contextual lookup of booking_id if missing
@@ -370,7 +294,7 @@ class ProcessPaymentTool(BaseTool):
                 if not luhn_check(card_number):
                     res = {"success": False, "error": "Payment Declined: Invalid credit card number format (Luhn check failed)."}
                     if idempotency_key:
-                        save_idempotent_result(db, idempotency_key, res)
+                        save_idempotent_result(db, f"payment:{idempotency_key}", res)
                     return res
 
                 # Simulate card processing delay and update booking status to CONFIRMED
@@ -402,7 +326,7 @@ class ProcessPaymentTool(BaseTool):
                     "amount_paid": booking.price_paid
                 }
                 if idempotency_key:
-                    save_idempotent_result(db, idempotency_key, res)
+                    save_idempotent_result(db, f"payment:{idempotency_key}", res)
                 return res
             except Exception as e:
                 db.rollback()
@@ -438,9 +362,10 @@ class ConfirmBookingTool(BaseTool):
             db = SessionLocal()
             try:
                 if idempotency_key:
-                    cached = get_idempotent_result(db, idempotency_key)
+                    confirm_idem_key = f"confirm:{idempotency_key}"
+                    cached = get_idempotent_result(db, confirm_idem_key)
                     if cached:
-                        logger.info(f"ConfirmBookingTool: Found idempotent cached response for key: {idempotency_key}")
+                        logger.info(f"ConfirmBookingTool: Found idempotent cached response for key: {confirm_idem_key}")
                         return cached
 
                 # Contextual lookup of booking_id if missing
@@ -455,31 +380,12 @@ class ConfirmBookingTool(BaseTool):
                 booking = db.query(BookingModel).filter(BookingModel.id == booking_id).first()
                 if not booking:
                     return {"success": False, "error": f"Booking with ID {booking_id} not found."}
+                from backend.providers.router import ProviderRouter
+                logger.info(f"Routing confirm_booking request via ProviderRouter for booking {booking_id}")
+                res = ProviderRouter().confirm_booking(booking_id)
 
-                if booking.status != "CONFIRMED":
-                    return {"success": False, "error": f"Booking is in state '{booking.status}', cannot generate PNR. Process payment first."}
-
-                # Generate PNR if not already present
-                if not booking.pnr:
-                    pnr = "".join(uuid.uuid4().hex[:6].upper())
-                    booking.pnr = pnr
-                    db.commit()
-                
-                # Fetch associated bus info
-                bus = db.query(BusInventoryModel).filter(BusInventoryModel.id == booking.bus_id).first()
-                bus_type = bus.bus_type if bus else "Sleeper AC"
-                operator = bus.operator_name if bus else "Travel Express"
-
-                ticket = {
-                    "pnr": booking.pnr,
-                    "passenger_name": booking.passenger_name,
-                    "passenger_email": booking.passenger_email,
-                    "seat_number": booking.seat_number,
-                    "operator_name": operator,
-                    "bus_type": bus_type,
-                    "fare": booking.price_paid,
-                    "status": "CONFIRMED"
-                }
+                if not res.get("success"):
+                    return res
 
                 # Update task output
                 task = db.query(TaskStateModel).filter(
@@ -488,12 +394,11 @@ class ConfirmBookingTool(BaseTool):
                 ).first()
                 if task:
                     task.status = "COMPLETED"
-                    task.set_output(ticket)
+                    task.set_output(res.get("ticket", {}))
                     db.commit()
 
-                res = {"success": True, "ticket": ticket}
                 if idempotency_key:
-                    save_idempotent_result(db, idempotency_key, res)
+                    save_idempotent_result(db, f"confirm:{idempotency_key}", res)
                 return res
             except Exception as e:
                 db.rollback()
@@ -549,3 +454,49 @@ class SendNotificationTool(BaseTool):
             return {"success": False, "error": str(e)}
         finally:
             db.close()
+
+
+@register_tool
+class GetRouteDetailsTool(BaseTool):
+    @property
+    def name(self) -> str:
+        return "get_route_details"
+
+    @property
+    def description(self) -> str:
+        return "Fetches distance, travel duration, and route summary for a journey. Arguments: origin (str), destination (str)."
+
+    def execute(self, session_id: str, **kwargs) -> Dict[str, Any]:
+        origin = kwargs.get("origin")
+        destination = kwargs.get("destination")
+        if not origin or not destination:
+            return {"success": False, "error": "Missing required parameters: 'origin' and 'destination'."}
+        try:
+            res = MapsService.get_route_details(origin, destination)
+            return res
+        except Exception as e:
+            logger.error(f"GetRouteDetailsTool execution error: {e}")
+            return {"success": False, "error": str(e)}
+
+
+@register_tool
+class GetWeatherForecastTool(BaseTool):
+    @property
+    def name(self) -> str:
+        return "get_weather_forecast"
+
+    @property
+    def description(self) -> str:
+        return "Retrieves weather temperature and condition for a travel destination. Arguments: destination (str), travel_date (optional str)."
+
+    def execute(self, session_id: str, **kwargs) -> Dict[str, Any]:
+        destination = kwargs.get("destination")
+        travel_date = kwargs.get("travel_date", "")
+        if not destination:
+            return {"success": False, "error": "Missing required parameter: 'destination'."}
+        try:
+            res = WeatherService.get_weather_forecast(destination, travel_date)
+            return res
+        except Exception as e:
+            logger.error(f"GetWeatherForecastTool execution error: {e}")
+            return {"success": False, "error": str(e)}

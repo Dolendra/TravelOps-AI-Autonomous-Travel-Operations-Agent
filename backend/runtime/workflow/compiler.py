@@ -4,12 +4,12 @@ import yaml
 import logging
 from typing import Dict, Any, List
 
-logger = logging.getLogger("travelops.workflows.compiler")
+logger = logging.getLogger("travelops.runtime.workflow.compiler")
 
 class WorkflowCompiler:
     DEFINITIONS_DIR = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "workflows",
+        "workflow",
         "definitions"
     )
 
@@ -19,6 +19,11 @@ class WorkflowCompiler:
         filename = f"{workflow_name}.yaml"
         filepath = os.path.join(cls.DEFINITIONS_DIR, filename)
         
+        # Fallback to backend/workflows/definitions if not found (during package transition)
+        if not os.path.exists(filepath):
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            filepath = os.path.join(base_dir, "workflows", "definitions", filename)
+            
         if not os.path.exists(filepath):
             logger.error(f"Workflow definition file not found: {filepath}")
             raise FileNotFoundError(f"Workflow definition template '{workflow_name}' does not exist.")
@@ -54,7 +59,17 @@ class WorkflowCompiler:
             if not task_id or not name:
                 raise ValueError("Each task must define a unique 'task_id' and 'name'.")
 
+            # Resolve task config metadata
+            config = {
+                "timeout": task.get("timeout"),
+                "retry": task.get("retry", 0),
+                "parallel": task.get("parallel", False),
+                "approval_required": task.get("approval_required", False),
+                "rollback": task.get("rollback")
+            }
+
             resolved_input = cls._resolve_value(input_data, variables)
+            resolved_input["_config"] = config  # Store as private config key
             
             resolved_tasks.append({
                 "task_id": task_id,
@@ -107,10 +122,8 @@ class WorkflowCompiler:
                 return False
             
             visited[node] = 1
-            # Check dependencies. If dependency ID is missing from task list, raise warning/error or treat as fine
             for dep in adj.get(node, []):
                 if dep not in adj:
-                    # Ignore external dependencies that aren't parts of this specific compiled wave
                     continue
                 if dfs(dep):
                     return True

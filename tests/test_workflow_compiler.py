@@ -6,7 +6,7 @@ from typing import Dict, Any
 # Add root folder to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.workflows.compiler import WorkflowCompiler
+from backend.runtime.workflow.compiler import WorkflowCompiler
 
 class TestWorkflowCompiler(unittest.TestCase):
     def test_search_and_recommend_compilation(self):
@@ -20,7 +20,7 @@ class TestWorkflowCompiler(unittest.TestCase):
         # Compile search_and_recommend workflow
         tasks = WorkflowCompiler.compile_workflow("search_and_recommend", variables)
         
-        self.assertEqual(len(tasks), 2)
+        self.assertEqual(len(tasks), 4)
         
         # Verify first task
         t1 = tasks[0]
@@ -31,11 +31,11 @@ class TestWorkflowCompiler(unittest.TestCase):
         self.assertEqual(t1["input_data"]["destination"], "Hyderabad")
         self.assertEqual(t1["input_data"]["travel_date"], "2026-07-01")
         
-        # Verify second task
-        t2 = tasks[1]
+        # Verify recommendation task
+        t2 = tasks[3]
         self.assertEqual(t2["task_id"], "recommend_1")
         self.assertEqual(t2["name"], "recommend_options")
-        self.assertEqual(t2["dependencies"], ["search_1"])
+        self.assertEqual(t2["dependencies"], ["search_1", "route_1", "weather_1"])
         self.assertEqual(t2["input_data"]["preferences"], "cheapest")
 
     def test_full_booking_parameter_substitution(self):
@@ -47,13 +47,14 @@ class TestWorkflowCompiler(unittest.TestCase):
             "bus_id": "bus_101",
             "seat_number": "12B",
             "amount": 750.50,
+            "card_number": "4111 1111 1111 1111",
             "idempotency_key": "idem_12345",
             "booking_id": "book_9876",
             "email": "traveler@example.com"
         }
         
         tasks = WorkflowCompiler.compile_workflow("full_booking", variables)
-        self.assertEqual(len(tasks), 6)
+        self.assertEqual(len(tasks), 8)
         
         # Verify that hold_seat resolved parameters
         hold_task = next(t for t in tasks if t["name"] == "hold_seat")
@@ -63,6 +64,7 @@ class TestWorkflowCompiler(unittest.TestCase):
         # Verify that process_payment resolved float amount
         payment_task = next(t for t in tasks if t["name"] == "process_payment")
         self.assertEqual(payment_task["input_data"]["amount"], 750.50)
+        self.assertEqual(payment_task["input_data"]["card_number"], "4111 1111 1111 1111")
         self.assertEqual(payment_task["input_data"]["idempotency_key"], "idem_12345")
         
         # Verify nested string interpolation in notification

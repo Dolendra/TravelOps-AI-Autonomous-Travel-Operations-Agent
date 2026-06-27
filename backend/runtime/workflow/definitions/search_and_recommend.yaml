@@ -4,14 +4,34 @@ description: Search for available buses and recommend the best options based on 
 tasks:
   - task_id: search_1
     name: search_buses
+    timeout: 8s
     dependencies: []
     input_data:
       origin: "${origin}"
       destination: "${destination}"
       travel_date: "${travel_date}"
+  - task_id: route_1
+    name: get_route_details
+    timeout: 8s
+    retry: 2
+    dependencies: []
+    input_data:
+      origin: "${origin}"
+      destination: "${destination}"
+  - task_id: weather_1
+    name: get_weather_forecast
+    timeout: 8s
+    retry: 2
+    dependencies: []
+    input_data:
+      destination: "${destination}"
+      travel_date: "${travel_date}"
   - task_id: recommend_1
     name: recommend_options
+    timeout: 5s
     dependencies:
       - search_1
+      - route_1
+      - weather_1
     input_data:
       preferences: "${preferences}"

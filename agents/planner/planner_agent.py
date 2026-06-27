@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from backend.services.llm import ModelRouter
 from backend.services.prompt_loader import PromptLoader
@@ -12,12 +12,13 @@ class PlannerAgent:
         self.model_router = model_router
         self.prompt_loader = prompt_loader
 
-    def generate_plan(self, origin: str, destination: str, travel_date: str, preferences: str = "highest_rating", workflow_name: str = "search_and_recommend") -> Dict[str, Any]:
+    def generate_plan(self, origin: str, destination: str, travel_date: str, preferences: str = "highest_rating", workflow_name: str = "search_and_recommend", session_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Generates/compiles the Task Dependency Graph. By default, compiles from declarative YAML definition templates.
         """
         try:
-            from backend.workflows.compiler import WorkflowCompiler
+            from backend.runtime.workflow.compiler import WorkflowCompiler
+            from backend.runtime.context.builder import PromptContextBuilder
             
             # Setup compilation variable payload
             variables = {
@@ -43,15 +44,14 @@ class PlannerAgent:
             is_generate_mocked = isinstance(self.model_router.generate, unittest.mock.Mock)
             if self.model_router.api_key or is_generate_mocked or getattr(self.model_router, "_is_mocked", False):
                 try:
-                    planner_prompt = self.prompt_loader.load_prompt("planner", {})
-                    user_instruction = (
-                        f"Create a task graph for travel from {origin} to {destination} on {travel_date}. "
-                        f"Preference: {preferences}."
+                    context_builder = PromptContextBuilder(self.model_router, self.prompt_loader)
+                    user_query = f"Create a task graph for travel from {origin} to {destination} on {travel_date}."
+                    context_bundle = context_builder.build_context(
+                        agent="planner",
+                        session_id=session_id or "mock_session",
+                        user_query=user_query
                     )
-                    messages = [
-                        {"role": "system", "content": planner_prompt},
-                        {"role": "user", "content": user_instruction}
-                    ]
+                    messages = context_bundle.messages
                     response = self.model_router.generate(
                         messages=messages,
                         capability="reasoning",
