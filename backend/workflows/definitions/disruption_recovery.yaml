@@ -1,0 +1,44 @@
+name: disruption_recovery
+version: 1.0.0
+description: Search for recovery alternatives upon delay or cancellation alert, rank option records, hold seats, execute difference charges, reconfirm booking PNR, and alert traveler.
+tasks:
+  - task_id: recovery_1
+    name: find_recovery_options
+    dependencies: []
+    input_data:
+      pnr: "${pnr}"
+      original_bus_id: "${bus_id}"
+  - task_id: recommend_1
+    name: recommend_options
+    dependencies:
+      - recovery_1
+    input_data:
+      preferences: "highest_rating"
+  - task_id: hold_1
+    name: hold_seat
+    dependencies:
+      - recommend_1
+    input_data:
+      bus_id: "${new_bus_id}"
+      seat_number: "${new_seat_number}"
+  - task_id: payment_1
+    name: process_payment
+    dependencies:
+      - hold_1
+    input_data:
+      amount: "${fare_difference}"
+      idempotency_key: "${idempotency_key}"
+  - task_id: confirm_1
+    name: confirm_booking
+    dependencies:
+      - payment_1
+    input_data:
+      booking_id: "${new_booking_id}"
+      idempotency_key: "${idempotency_key}"
+  - task_id: notify_1
+    name: send_notification
+    dependencies:
+      - confirm_1
+    input_data:
+      recipient: "${email}"
+      message: "Disruption Recovery complete. Your new boarding pass is ready: PNR ${new_booking_id}."

@@ -1,0 +1,45 @@
+name: full_booking
+version: 1.0.0
+description: Complete end-to-end travel booking journey including seat selection, hold, secure payment processing, final confirmation, and notification receipt alert.
+tasks:
+  - task_id: search_1
+    name: search_buses
+    dependencies: []
+    input_data:
+      origin: "${origin}"
+      destination: "${destination}"
+      travel_date: "${travel_date}"
+  - task_id: recommend_1
+    name: recommend_options
+    dependencies:
+      - search_1
+    input_data:
+      preferences: "${preferences}"
+  - task_id: hold_1
+    name: hold_seat
+    dependencies:
+      - recommend_1
+    input_data:
+      bus_id: "${bus_id}"
+      seat_number: "${seat_number}"
+  - task_id: payment_1
+    name: process_payment
+    dependencies:
+      - hold_1
+    input_data:
+      amount: "${amount}"
+      idempotency_key: "${idempotency_key}"
+  - task_id: confirm_1
+    name: confirm_booking
+    dependencies:
+      - payment_1
+    input_data:
+      booking_id: "${booking_id}"
+      idempotency_key: "${idempotency_key}"
+  - task_id: notify_1
+    name: send_notification
+    dependencies:
+      - confirm_1
+    input_data:
+      recipient: "${email}"
+      message: "Your booking is confirmed! Details: Bus ${bus_id}, Seat ${seat_number}."

@@ -1,0 +1,17 @@
+name: search_and_recommend
+version: 1.0.0
+description: Search for available buses and recommend the best options based on user preferences.
+tasks:
+  - task_id: search_1
+    name: search_buses
+    dependencies: []
+    input_data:
+      origin: "${origin}"
+      destination: "${destination}"
+      travel_date: "${travel_date}"
+  - task_id: recommend_1
+    name: recommend_options
+    dependencies:
+      - search_1
+    input_data:
+      preferences: "${preferences}"

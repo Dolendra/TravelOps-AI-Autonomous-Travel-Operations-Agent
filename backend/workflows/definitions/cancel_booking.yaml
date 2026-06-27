@@ -1,0 +1,16 @@
+name: cancel_booking
+version: 1.0.0
+description: Cancel an active reservation, release locked seats, trigger policy-based refund computations, and notify the user of cancellation status.
+tasks:
+  - task_id: cancel_1
+    name: cancel_booking
+    dependencies: []
+    input_data:
+      pnr: "${pnr}"
+  - task_id: notify_1
+    name: send_notification
+    dependencies:
+      - cancel_1
+    input_data:
+      recipient: "${email}"
+      message: "Your travel booking for PNR ${pnr} has been cancelled. Your refund has been processed."
