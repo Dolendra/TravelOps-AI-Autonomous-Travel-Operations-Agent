@@ -1,0 +1,302 @@
+_type: export
+__export_format: 4
+__export_date: 2026-06-28T14:20:00.000Z
+__export_source: insomnia.desktop.app:v8.3.0
+resources:
+  - _id: wrk_travelops
+    _type: workspace
+    name: TravelOps AI Workspace
+    description: Insomnia API Collection Workspace for TravelOps AI.
+    parentId: null
+
+  # Environment Settings
+  - _id: env_global
+    _type: environment
+    name: Base Environment
+    parentId: wrk_travelops
+    data:
+      base_url: http://localhost:8000
+      auth_token: ""
+      session_id: sess_demo_101
+    dataPropertyOrder:
+      &:
+        - base_url
+        - auth_token
+        - session_id
+    color: null
+    isPrivate: false
+
+  # Auth Folder
+  - _id: fld_auth
+    _type: request_group
+    name: Auth
+    parentId: wrk_travelops
+
+  - _id: req_register
+    _type: request
+    name: Register User
+    method: POST
+    url: "{{ _.base_url }}/api/auth/register"
+    body:
+      mimeType: application/json
+      text: |
+        {
+          "email": "operator@travelops.ai",
+          "password": "SecurePass123",
+          "name": "Jane Operator",
+          "role": "operator"
+        }
+    parameters: []
+    headers:
+      - name: Content-Type
+        value: application/json
+    authentication: {}
+    parentId: fld_auth
+
+  - _id: req_login
+    _type: request
+    name: Login User
+    method: POST
+    url: "{{ _.base_url }}/api/auth/login"
+    body:
+      mimeType: application/json
+      text: |
+        {
+          "email": "operator@travelops.ai",
+          "password": "SecurePass123"
+        }
+    parameters: []
+    headers:
+      - name: Content-Type
+        value: application/json
+    authentication: {}
+    parentId: fld_auth
+
+  # Sessions Folder
+  - _id: fld_sessions
+    _type: request_group
+    name: Sessions
+    parentId: wrk_travelops
+
+  - _id: req_create_session
+    _type: request
+    name: Create Session
+    method: POST
+    url: "{{ _.base_url }}/api/sessions"
+    body:
+      mimeType: application/json
+      text: |
+        {
+          "session_id": "{{ _.session_id }}"
+        }
+    parameters: []
+    headers:
+      - name: Content-Type
+        value: application/json
+    authentication:
+      type: bearer
+      token: "{{ _.auth_token }}"
+    parentId: fld_sessions
+
+  - _id: req_list_sessions
+    _type: request
+    name: List Sessions
+    method: GET
+    url: "{{ _.base_url }}/api/sessions"
+    body: {}
+    parameters: []
+    headers: []
+    authentication:
+      type: bearer
+      token: "{{ _.auth_token }}"
+    parentId: fld_sessions
+
+  - _id: req_session_details
+    _type: request
+    name: Get Session Details
+    method: GET
+    url: "{{ _.base_url }}/api/sessions/{{ _.session_id }}"
+    body: {}
+    parameters: []
+    headers: []
+    authentication:
+      type: bearer
+      token: "{{ _.auth_token }}"
+    parentId: fld_sessions
+
+  - _id: req_session_studio
+    _type: request
+    name: Get Session Developer Studio Details
+    method: GET
+    url: "{{ _.base_url }}/api/sessions/{{ _.session_id }}/studio-details"
+    body: {}
+    parameters: []
+    headers: []
+    authentication:
+      type: bearer
+      token: "{{ _.auth_token }}"
+    parentId: fld_sessions
+
+  - _id: req_send_message
+    _type: request
+    name: Send Message
+    method: POST
+    url: "{{ _.base_url }}/api/sessions/{{ _.session_id }}/message"
+    body:
+      mimeType: application/json
+      text: |
+        {
+          "message": "Search for sleeper buses from Bangalore to Chennai tomorrow"
+        }
+    parameters: []
+    headers:
+      - name: Content-Type
+        value: application/json
+    authentication:
+      type: bearer
+      token: "{{ _.auth_token }}"
+    parentId: fld_sessions
+
+  - _id: req_run_workflow
+    _type: request
+    name: Run Workflow
+    method: POST
+    url: "{{ _.base_url }}/api/sessions/{{ _.session_id }}/run"
+    body: {}
+    parameters: []
+    headers: []
+    authentication:
+      type: bearer
+      token: "{{ _.auth_token }}"
+    parentId: fld_sessions
+
+  # Operations & Events Folder
+  - _id: fld_operations
+    _type: request_group
+    name: Operations & Events
+    parentId: wrk_travelops
+
+  - _id: req_approve_task
+    _type: request
+    name: Approve Task
+    method: POST
+    url: "{{ _.base_url }}/api/sessions/{{ _.session_id }}/approve"
+    body:
+      mimeType: application/json
+      text: |
+        {
+          "task_id": "hold_1"
+        }
+    parameters: []
+    headers:
+      - name: Content-Type
+        value: application/json
+    authentication:
+      type: bearer
+      token: "{{ _.auth_token }}"
+    parentId: fld_operations
+
+  - _id: req_execute_tool
+    _type: request
+    name: Direct Execute Tool Task
+    method: POST
+    url: "{{ _.base_url }}/api/sessions/{{ _.session_id }}/execute-task"
+    body:
+      mimeType: application/json
+      text: |
+        {
+          "tool_name": "search_buses",
+          "arguments": {
+            "origin": "Bangalore",
+            "destination": "Chennai",
+            "travel_date": "2026-06-29"
+          }
+        }
+    parameters: []
+    headers:
+      - name: Content-Type
+        value: application/json
+    authentication:
+      type: bearer
+      token: "{{ _.auth_token }}"
+    parentId: fld_operations
+
+  - _id: req_publish_event
+    _type: request
+    name: Publish Event Disruption
+    method: POST
+    url: "{{ _.base_url }}/api/events/publish"
+    body:
+      mimeType: application/json
+      text: |
+        {
+          "event_type": "BusCancelled",
+          "payload": {
+            "session_id": "{{ _.session_id }}",
+            "operator_name": "VRL Travels",
+            "route_id": "route_blr_che_1",
+            "cancelled_at": "2026-06-29T10:00:00Z"
+          }
+        }
+    parameters: []
+    headers:
+      - name: Content-Type
+        value: application/json
+    authentication:
+      type: bearer
+      token: "{{ _.auth_token }}"
+    parentId: fld_operations
+
+  # Observability Folder
+  - _id: fld_observability
+    _type: request_group
+    name: Observability & System
+    parentId: wrk_travelops
+
+  - _id: req_observability_metrics
+    _type: request
+    name: Get Observability Metrics
+    method: GET
+    url: "{{ _.base_url }}/api/observability/metrics"
+    body: {}
+    parameters: []
+    headers: []
+    authentication:
+      type: bearer
+      token: "{{ _.auth_token }}"
+    parentId: fld_observability
+
+  - _id: req_eval_metrics
+    _type: request
+    name: Get Evaluation Metrics
+    method: GET
+    url: "{{ _.base_url }}/api/evaluation/metrics"
+    body: {}
+    parameters: []
+    headers: []
+    authentication:
+      type: bearer
+      token: "{{ _.auth_token }}"
+    parentId: fld_observability
+
+  - _id: req_prometheus_metrics
+    _type: request
+    name: Prometheus Metrics
+    method: GET
+    url: "{{ _.base_url }}/metrics"
+    body: {}
+    parameters: []
+    headers: []
+    authentication: {}
+    parentId: fld_observability
+
+  - _id: req_health_check
+    _type: request
+    name: System Health
+    method: GET
+    url: "{{ _.base_url }}/health"
+    body: {}
+    parameters: []
+    headers: []
+    authentication: {}
+    parentId: fld_observability

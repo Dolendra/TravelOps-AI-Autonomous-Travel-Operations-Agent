@@ -10,8 +10,8 @@ This phase focuses on **Release Engineering** and transitioning TravelOps AI fro
 | --- | --- | --- |
 | **Sprint 1** | Developer Experience (DX files, packaging, Makefile, license, architecture guide) | **COMPLETED** |
 | **Sprint 2** | Demo Experience Package (seeding, resets, simulation scripts, metrics profiling) | **COMPLETED** |
-| **Sprint 3** | Python SDK (`travelops-sdk/` client module) | **NOT STARTED** |
-| **Sprint 4** | API Documentation (OpenAPI, Postman, curl guides, diagrams) | **NOT STARTED** |
+| **Sprint 3** | Python SDK (`travelops-sdk/` client module) | **COMPLETED** |
+| **Sprint 4** | API Documentation (OpenAPI, Postman, curl guides, diagrams) | **COMPLETED** |
 
 ---
 

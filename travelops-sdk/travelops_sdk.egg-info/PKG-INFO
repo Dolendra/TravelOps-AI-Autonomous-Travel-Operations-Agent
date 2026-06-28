@@ -1,0 +1,92 @@
+Metadata-Version: 2.4
+Name: travelops-sdk
+Version: 1.0.0
+Summary: Python Client SDK for TravelOps AI - Autonomous Travel Operations Platform
+Author: TravelOps AI Team
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.28.0
+Requires-Dist: pydantic>=2.0.0
+
+# TravelOps AI Python Client SDK
+
+A python library to interact with the TravelOps AI Autonomous Travel Operations Platform API.
+
+## Installation
+
+You can install the SDK in editable mode during development:
+
+```bash
+pip install -e ./travelops-sdk
+```
+
+## Quick Start
+
+### 1. Initialize Client & Authenticate
+```python
+from travelops_sdk import TravelOpsClient
+
+# Initialize client
+client = TravelOpsClient(base_url="http://localhost:8000")
+
+# Register a user
+client.register(
+    email="passenger@travelops.ai",
+    password="SecurePassword123",
+    name="Jane Passenger",
+    role="passenger"
+)
+
+# Login to get JWT authorization context
+client.login(email="passenger@travelops.ai", password="SecurePassword123")
+```
+
+### 2. Operations & Sessions
+```python
+# Create a new agent operations session
+session = client.create_session()
+session_id = session["session_id"]
+print(f"Session initialized: {session_id}")
+
+# Send user message query to trigger Intent Parsing
+response = client.send_message(
+    session_id=session_id,
+    message="Search for sleeper buses from Hyderabad to Bangalore tomorrow"
+)
+print("Assistant:", response["response"])
+
+# Run the planned workflow graph asynchronously in the background
+client.run_session_workflow(session_id)
+```
+
+### 3. Monitoring & Disruption Recovery
+```python
+# Check real-time workflow state and execution timeline
+details = client.get_session_details(session_id)
+print(f"Workflow State: {details.workflow_state}")
+
+# Fetch full developer studio timeline details and agent health statuses
+studio = client.get_session_studio_details(session_id)
+print("Estimated Session Cost (USD):", studio["metrics"]["estimated_cost_usd"])
+
+# Publish disruptions to test autonomous event recovery checks
+client.publish_event(
+    event_type="BusCancelled",
+    payload={
+        "session_id": session_id,
+        "operator_name": "VRL Travels",
+        "route_id": "route_hyd_blr_1",
+        "cancelled_at": "2026-06-28T20:00:00Z"
+    }
+)
+```
+
+### 4. Admin and Telemetry
+```python
+# Retrieve global LLM usage cost and tool registries count
+metrics = client.get_observability_metrics()
+print(f"Total USD Spent: {metrics.total_cost_usd}")
+```

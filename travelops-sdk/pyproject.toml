@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "travelops-sdk"
+version = "1.0.0"
+description = "Python Client SDK for TravelOps AI - Autonomous Travel Operations Platform"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "TravelOps AI Team" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "requests>=2.28.0",
+    "pydantic>=2.0.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["travelops_sdk*"]
