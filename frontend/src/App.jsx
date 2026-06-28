@@ -985,18 +985,30 @@ function App() {
               <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '32px' }}>
                 <div className="stat-card" style={{ borderLeft: '4px solid var(--success)' }}>
                   <span className="label">Intent Accuracy</span>
-                  <span className="value">98.5%</span>
-                  <span className="subtext">LLM capability profiling</span>
+                  <span className="value">
+                    {evaluationMetrics ? `${evaluationMetrics.intent_accuracy}%` : '...'}
+                  </span>
+                  <span className="subtext">
+                    {evaluationMetrics ? `${evaluationMetrics.intent_passed}/${evaluationMetrics.intent_total} queries` : 'LLM capability profiling'}
+                  </span>
                 </div>
                 <div className="stat-card" style={{ borderLeft: '4px solid var(--success)' }}>
                   <span className="label">Entity Extraction</span>
-                  <span className="value">99.1%</span>
-                  <span className="subtext">Parameter parser accuracy</span>
+                  <span className="value">
+                    {evaluationMetrics ? `${evaluationMetrics.entity_accuracy}%` : '...'}
+                  </span>
+                  <span className="subtext">
+                    {evaluationMetrics ? `${evaluationMetrics.entity_passed}/${evaluationMetrics.entity_total} queries` : 'Parameter parser accuracy'}
+                  </span>
                 </div>
                 <div className="stat-card" style={{ borderLeft: '4px solid var(--success)' }}>
                   <span className="label">Auto-Recovery Success</span>
-                  <span className="value">96.0%</span>
-                  <span className="subtext">Rebooking success rate</span>
+                  <span className="value">
+                    {evaluationMetrics ? `${evaluationMetrics.recovery_success_rate}%` : '...'}
+                  </span>
+                  <span className="subtext">
+                    {evaluationMetrics ? `${evaluationMetrics.recovered_total}/${evaluationMetrics.disruptions_total} cases` : 'Rebooking success rate'}
+                  </span>
                 </div>
                 <div className="stat-card" style={{ borderLeft: '4px solid var(--success)' }}>
                   <span className="label">Hallucination Quotient</span>

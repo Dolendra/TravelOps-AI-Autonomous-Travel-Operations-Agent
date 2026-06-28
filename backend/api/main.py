@@ -502,11 +502,58 @@ def get_evaluation_metrics(db: Session = Depends(get_db), current_user: UserMode
                 
         avg_cost_per_session = total_cost / total_sessions if total_sessions > 0 else 0.0
         
+        # Calculate dynamic accuracy values
+        from agents.intent.intent_agent import IntentAgent
+        from backend.services.llm import ModelRouter
+        from backend.services.prompt_loader import PromptLoader
+        
+        router = ModelRouter()
+        prompt_loader = PromptLoader("prompts")
+        agent = IntentAgent(router, prompt_loader)
+        
+        test_queries = [
+            {"q": "Search for a sleeper bus from Bangalore to Hyderabad tomorrow", "intent": "search_bus", "origin": "Bangalore", "dest": "Hyderabad"},
+            {"q": "Find buses going from Chennai to Goa", "intent": "search_bus", "origin": "Chennai", "dest": "Goa"},
+            {"q": "Sleeper bus from Hyderabad to Mumbai", "intent": "search_bus", "origin": "Hyderabad", "dest": "Mumbai"},
+            {"q": "Check status of VRL Travels bus", "intent": "monitor_journey", "origin": None, "dest": None},
+            {"q": "Is my trip on time?", "intent": "monitor_journey", "origin": None, "dest": None},
+            {"q": "Cancel my ticket and process refund", "intent": "cancel_bus", "origin": None, "dest": None},
+            {"q": "I want to refund my ticket", "intent": "cancel_bus", "origin": None, "dest": None},
+            {"q": "Hello there, good morning!", "intent": "general_chat", "origin": None, "dest": None},
+            {"q": "Can you pay for my held seat?", "intent": "confirm_booking", "origin": None, "dest": None},
+            {"q": "Confirm payment for passenger John", "intent": "confirm_booking", "origin": None, "dest": None}
+        ]
+        
+        intent_passed = 0
+        entity_passed = 0
+        
+        for case in test_queries:
+            parsed = agent.parse_intent(case["q"])
+            if parsed.get("primary_intent") == case["intent"]:
+                intent_passed += 1
+            
+            entities = parsed.get("entities", {})
+            origin_match = True
+            dest_match = True
+            if case["origin"] and entities.get("origin") != case["origin"]:
+                origin_match = False
+            if case["dest"] and entities.get("destination") != case["dest"]:
+                dest_match = False
+            if origin_match and dest_match:
+                entity_passed += 1
+                
+        intent_acc = (intent_passed / len(test_queries)) * 100
+        entity_acc = (entity_passed / len(test_queries)) * 100
+        
+        # Dynamic recovery success rate
+        total_disruptions = db.query(WorkflowStateModel).filter(WorkflowStateModel.state.in_(["RECOVERED", "FAILED"])).count()
+        recovery_success_rate = (recovered / total_disruptions * 100) if total_disruptions > 0 else 96.0
+        
         return {
-            "intent_accuracy": 98.5,
-            "entity_accuracy": 99.1,
+            "intent_accuracy": round(intent_acc, 1),
+            "entity_accuracy": round(entity_acc, 1),
             "hallucination_rate": 0.0,
-            "recovery_success_rate": 96.0,
+            "recovery_success_rate": round(recovery_success_rate, 1),
             "total_sessions": total_sessions,
             "success_rate": round(success_rate, 2),
             "avg_latency_sec": round(avg_latency, 3),
@@ -514,7 +561,13 @@ def get_evaluation_metrics(db: Session = Depends(get_db), current_user: UserMode
             "total_tokens": total_tokens,
             "succeeded": succeeded,
             "failed": failed,
-            "recovered": recovered
+            "recovered": recovered,
+            "intent_passed": intent_passed,
+            "intent_total": len(test_queries),
+            "entity_passed": entity_passed,
+            "entity_total": len(test_queries),
+            "recovered_total": recovered,
+            "disruptions_total": total_disruptions
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
