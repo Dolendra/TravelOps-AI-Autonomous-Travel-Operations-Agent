@@ -123,9 +123,10 @@ Browse the complete documentation portal:
 * 📦 **[Context Runtime](file:///d:/TravelOps%20AI%20%E2%80%93%20Autonomous%20Travel%20Operations%20Agent/docs/runtime.md)** — Fragment caches, token budgets, and TTL leases.
 * 🤖 **[Agent Runtime](file:///d:/TravelOps%20AI%20%E2%80%93%20Autonomous%20Travel%20Operations%20Agent/docs/agents.md)** — Capability registries, versioning, and circuit breakers.
 * 🔌 **[Provider Integration & Routing](file:///d:/TravelOps%20AI%20%E2%80%93%20Autonomous%20Travel%20Operations%20Agent/docs/phases/phase_11.md)** — Abstract travel providers, dynamic failovers, and registry failover rules.
+* 🎛️ **[Operations Studio Portal](file:///d:/TravelOps%20AI%20%E2%80%93%20Autonomous%20Travel%20Operations%20Agent/docs/phases/phase_12.md)** — Custom SVG execution DAGs, debugging playback engines, event timelines, and prompts viewer.
 * ⚙️ **[Workflow Engine](file:///d:/TravelOps%20AI%20%E2%80%93%20Autonomous%20Travel%20Operations%20Agent/docs/workflow_engine.md)** — YAML compiler specs, approvals, and Sagas.
 * 🎛️ **[API Reference](file:///d:/TravelOps%20AI%20%E2%80%93%20Autonomous%20Travel%20Operations%20Agent/docs/api.md)** — FastAPI endpoints, JWT auth, and rate limits.
 * ☸️ **[Deployment Guide](file:///d:/TravelOps%20AI%20%E2%80%93%20Autonomous%20Travel%20Operations%20Agent/docs/deployment.md)** — Docker-compose and Kubernetes cluster manifests.
 * ✍️ **[Contributing Guidelines](file:///d:/TravelOps%20AI%20%E2%80%93%20Autonomous%20Travel%20Operations%20Agent/docs/contributing.md)** — Registering tools, testing conventions, and commits.
 * 📄 **[ADR Records](file:///d:/TravelOps%20AI%20%E2%80%93%20Autonomous%20Travel%20Operations%20Agent/docs/adr.md)** — Key technical decisions and design trade-offs.
-* 📣 **[Release Notes](file:///d:/TravelOps%20AI%20%E2%80%93%20Autonomous%20Travel%20Operations%20Agent/docs/release_notes.md)** — Changelog from v1.0 (MVP) to v2.1 (Production Release).
+* 📣 **[Release Notes](file:///d:/TravelOps%20AI%20%E2%80%93%20Autonomous%20Travel%20Operations%20Agent/docs/release_notes.md)** — Changelog from v1.0 (MVP) to v2.2 (Production Release).

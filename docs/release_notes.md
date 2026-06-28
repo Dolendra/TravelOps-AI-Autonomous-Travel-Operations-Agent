@@ -4,6 +4,18 @@ We are proud to document the release history of the TravelOps AI platform, trans
 
 ---
 
+## 🚀 TravelOps AI v2.2 (AI Operations Studio)
+
+This release upgrades the client experience to **TravelOps AI Studio**, a central operations panel displaying real-time execution pipelines, dynamic SVG task DAGs, event timelines, metrics dashboards, and debugging playback simulators.
+
+### Key Highlights in v2.2:
+1. **Interactive SVG DAG Visualizer**: Draws vertical execution nodes dynamically based on dependency matrices. Nodes glow when running and turn green upon successful completion.
+2. **Execution Replay Engine**: Simulates step-by-step playback of DAG nodes (lights up connections and displays inspector details sequentially) for completed runs.
+3. **Agent Context Viewer**: Fetches active markdown prompts (Intent, Planner, Support, Reflection, Memory) and displays session memory preferences in a read-only telemetry window.
+4. **Operations dashboard**: Real-time token metric counters, LLM cost charts, cache hit rate metrics, and provider router health statuses.
+
+---
+
 ## 🚀 TravelOps AI v2.1 (Provider Runtime & Failovers)
 
 This release focuses on platform **extensibility and decoupling**, shifting operational tasks (Search, hold, confirm, cancel) onto a dedicated Provider Integration Layer, and dynamically resolving all cognitive/operational agents out of the `AgentRuntime` registry.
