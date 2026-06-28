@@ -367,6 +367,87 @@ def get_session_details(session_id: str, db: Session = Depends(get_db), current_
     }
 
 
+
+@app.get("/api/sessions/{session_id}/studio-details")
+def get_session_studio_details(session_id: str, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)):
+    # Verify session exists
+    session = db.query(SessionModel).filter(SessionModel.session_id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    # Enforce user/session ownership
+    if current_user.role != "admin" and session.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied: You do not own this session.")
+        
+    # Get all audit logs for this session to build the full event timeline
+    logs = db.query(AuditLogModel).filter(
+        AuditLogModel.session_id == session_id
+    ).order_by(AuditLogModel.created_at.asc()).all()
+    
+    timeline = []
+    total_tokens = 0
+    total_cost = 0.0
+    llm_calls_count = 0
+    cache_hits = 0
+    cache_misses = 0
+
+    for log in logs:
+        payload = log.get_payload() or {}
+        # Parse timeline entries
+        timeline.append({
+            "id": log.id,
+            "timestamp": to_iso_utc(log.created_at),
+            "agent_name": log.agent_name,
+            "action": log.action,
+            "reasoning_summary": log.reasoning_summary,
+            "payload": payload
+        })
+        
+        # Calculate tokens and costs dynamically from LLM audit traces
+        if log.agent_name in ["IntentAgent", "PlannerAgent", "ReflectionAgent", "RecoveryAgent"]:
+            total_tokens += payload.get("tokens", 0) or 0
+            total_cost += payload.get("cost", 0.0) or 0.0
+            if log.action in ["parse_intent", "generate_plan", "reflect_and_repair"]:
+                llm_calls_count += 1
+                
+        # Calculate cache hit metrics
+        if "cache_hit" in payload:
+            if payload.get("cache_hit"):
+                cache_hits += 1
+            else:
+                cache_misses += 1
+
+    # Get active registered agent health reports from AgentRuntime
+    agents_health = agent_runtime.get_health_report()
+    
+    # Get active registered provider health reports from ProviderRouter
+    from backend.providers.router import ProviderRouter
+    router = ProviderRouter()
+    providers_health = []
+    for name, health_record in router.health_records.items():
+        providers_health.append({
+            "name": health_record.name,
+            "status": health_record.status,
+            "consecutive_failures": health_record.consecutive_failures,
+            "avg_latency_ms": round(health_record.get_avg_latency() * 1000, 2)
+        })
+
+    return {
+        "session_id": session_id,
+        "timeline": timeline,
+        "metrics": {
+            "total_tokens": total_tokens,
+            "estimated_cost_usd": round(total_cost, 6),
+            "llm_calls_count": llm_calls_count,
+            "cache_hits": cache_hits,
+            "cache_misses": cache_misses,
+            "cache_hit_rate": round(cache_hits / (cache_hits + cache_misses) * 100 if (cache_hits + cache_misses) > 0 else 0, 2)
+        },
+        "agents": agents_health,
+        "providers": providers_health
+    }
+
+
 # 3. Message Processing & Agent Orchestration
 @app.post("/api/sessions/{session_id}/message")
 def send_message(session_id: str, req: MessageRequest, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)):
