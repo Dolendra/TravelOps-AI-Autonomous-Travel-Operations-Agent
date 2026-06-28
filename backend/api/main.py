@@ -448,6 +448,25 @@ def get_session_studio_details(session_id: str, db: Session = Depends(get_db), c
     }
 
 
+
+@app.get("/api/prompts/{name}")
+def get_prompt_template(name: str, current_user: UserModel = Depends(get_current_user)):
+    # Validate name to prevent directory traversal
+    if not name.isalnum():
+        raise HTTPException(status_code=400, detail="Invalid prompt name")
+        
+    filepath = os.path.join("prompts", f"{name}.md")
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Prompt template not found")
+        
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read()
+        return {"name": name, "content": content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # 3. Message Processing & Agent Orchestration
 @app.post("/api/sessions/{session_id}/message")
 def send_message(session_id: str, req: MessageRequest, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)):

@@ -12,7 +12,7 @@ function App() {
   const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
   const [authError, setAuthError] = useState('');
 
-  // Sidebar navigation state: 'dashboard' | 'console' | 'sessions' | 'agents' | 'providers'
+  // Sidebar navigation state: 'dashboard' | 'console' | 'sessions' | 'context' | 'agents' | 'providers'
   const [activeTab, setActiveTab] = useState('console');
 
   const [sessions, setSessions] = useState([]);
@@ -35,6 +35,14 @@ function App() {
     agents: [],
     providers: []
   });
+
+  // Replay engine states
+  const [isReplaying, setIsReplaying] = useState(false);
+  const [replayedTasks, setReplayedTasks] = useState([]);
+
+  // Context Viewer states
+  const [selectedPrompt, setSelectedPrompt] = useState('intent');
+  const [promptContent, setPromptContent] = useState('');
 
   const [selectedNode, setSelectedNode] = useState(null);
   const [inputValue, setInputValue] = useState('');
@@ -192,6 +200,22 @@ function App() {
     }
   };
 
+  // Fetch prompt text template for Context Viewer
+  const fetchPrompt = async (promptName) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/prompts/${promptName}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPromptContent(data.content);
+      }
+    } catch (err) {
+      console.error("Failed to fetch prompt:", err);
+    }
+  };
+
   // Create a new session
   const handleNewSession = async () => {
     if (!token) return;
@@ -275,6 +299,39 @@ function App() {
     }
   };
 
+  // Playback Replay Engine (simulates steps chronologically in UI)
+  const handleStartReplay = () => {
+    if (sessionDetails.tasks.length === 0 || isReplaying) return;
+    setIsReplaying(true);
+    setSelectedNode(null);
+    
+    // Copy tasks and set initial status to PENDING
+    const initialTasks = sessionDetails.tasks.map(t => ({ ...t, status: 'PENDING' }));
+    setReplayedTasks(initialTasks);
+    
+    let step = 0;
+    const runNextStep = () => {
+      if (step >= sessionDetails.tasks.length) {
+        setIsReplaying(false);
+        return;
+      }
+      
+      const nextTask = sessionDetails.tasks[step];
+      setReplayedTasks(prev => prev.map(t => {
+        if (t.task_id === nextTask.task_id) {
+          return { ...t, status: nextTask.status };
+        }
+        return t;
+      }));
+      
+      setSelectedNode(nextTask);
+      step += 1;
+      setTimeout(runNextStep, 1200);
+    };
+    
+    setTimeout(runNextStep, 800);
+  };
+
   // Setup periodic polling
   useEffect(() => {
     if (token) {
@@ -288,27 +345,32 @@ function App() {
       fetchStudioDetails(currentSessionId);
     }
     const interval = setInterval(() => {
-      if (currentSessionId && token) {
+      if (currentSessionId && token && !isReplaying) {
         fetchSessionDetails(currentSessionId);
         fetchStudioDetails(currentSessionId);
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [currentSessionId, token]);
+  }, [currentSessionId, token, isReplaying]);
+
+  useEffect(() => {
+    if (activeTab === 'context') {
+      fetchPrompt(selectedPrompt);
+    }
+  }, [activeTab, selectedPrompt]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [sessionDetails.conversation]);
 
-  // Update selectedNode matching updated sessionDetails task list to keep data fresh in the inspector
   useEffect(() => {
-    if (selectedNode && sessionDetails.tasks.length > 0) {
+    if (selectedNode && sessionDetails.tasks.length > 0 && !isReplaying) {
       const matching = sessionDetails.tasks.find(t => t.task_id === selectedNode.task_id);
       if (matching) {
         setSelectedNode(matching);
       }
     }
-  }, [sessionDetails.tasks]);
+  }, [sessionDetails.tasks, isReplaying]);
 
   if (!token) {
     return (
@@ -374,7 +436,7 @@ function App() {
 
   // Draw customized responsive SVG DAG
   const renderWorkflowSvg = () => {
-    const { tasks } = sessionDetails;
+    const tasks = isReplaying ? replayedTasks : sessionDetails.tasks;
     if (!tasks || tasks.length === 0) {
       return (
         <div style={{ color: 'var(--text-secondary)', textAlign: 'center', marginTop: '60px', padding: '20px' }}>
@@ -534,6 +596,13 @@ function App() {
             Session Browser
           </div>
           <div 
+            className={`studio-nav-item ${activeTab === 'context' ? 'active' : ''}`}
+            onClick={() => setActiveTab('context')}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+            Context Viewer
+          </div>
+          <div 
             className={`studio-nav-item ${activeTab === 'agents' ? 'active' : ''}`}
             onClick={() => setActiveTab('agents')}
           >
@@ -575,8 +644,9 @@ function App() {
             {activeTab === 'dashboard' && 'Operations Dashboard'}
             {activeTab === 'console' && 'Operations Studio Console'}
             {activeTab === 'sessions' && 'Session Browser Log'}
+            {activeTab === 'context' && 'Agent Context Viewer'}
             {activeTab === 'agents' && 'Dynamic Agent Registry'}
-            {activeTab === 'providers' && 'Transit Providers Routing telemetry'}
+            {activeTab === 'providers' && 'Transit Providers Routing Telemetry'}
           </h2>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             {currentSessionId && (
@@ -698,16 +768,26 @@ function App() {
                 {/* SVG Live DAG */}
                 <div style={{ flex: 1, borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', height: '60%' }}>
                   <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>🕸️ Live Workflow DAG</span>
+                    <span>🕸5 Live Workflow DAG {isReplaying && "(REPLAY ACTIVE)"}</span>
                     {sessionDetails.tasks.length > 0 && (
-                      <button 
-                        className="btn-primary" 
-                        onClick={handleSimulateExecution} 
-                        disabled={isSimulating}
-                        style={{ margin: 0, padding: '6px 12px', fontSize: '0.8rem' }}
-                      >
-                        {isSimulating ? 'Running...' : 'Simulate Run'}
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          className="btn-primary" 
+                          onClick={handleStartReplay}
+                          disabled={isReplaying || isSimulating}
+                          style={{ margin: 0, padding: '6px 12px', fontSize: '0.8rem', background: '#4f46e5' }}
+                        >
+                          {isReplaying ? 'Replaying...' : '▶ Replay'}
+                        </button>
+                        <button 
+                          className="btn-primary" 
+                          onClick={handleSimulateExecution} 
+                          disabled={isSimulating || isReplaying}
+                          style={{ margin: 0, padding: '6px 12px', fontSize: '0.8rem', background: 'var(--success)' }}
+                        >
+                          {isSimulating ? 'Running...' : 'Simulate Run'}
+                        </button>
+                      </div>
                     )}
                   </div>
                   <div style={{ flex: 1, overflow: 'auto' }}>
@@ -820,7 +900,55 @@ function App() {
             </div>
           )}
 
-          {/* TAB 4: AGENT REGISTRY */}
+          {/* TAB 4: CONTEXT VIEWER */}
+          {activeTab === 'context' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: '32px' }}>
+              <div>
+                <h3>Prompts Templates</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+                  {['intent', 'memory', 'planner', 'reflection', 'support'].map(pName => (
+                    <button 
+                      key={pName} 
+                      className={`studio-nav-item ${selectedPrompt === pName ? 'active' : ''}`}
+                      onClick={() => setSelectedPrompt(pName)}
+                      style={{ border: '1px solid var(--border-color)', textAlign: 'left', background: 'transparent' }}
+                    >
+                      📄 {pName.toUpperCase()} Prompt
+                    </button>
+                  ))}
+                </div>
+                
+                <div style={{ marginTop: '32px', padding: '16px', background: 'rgba(25,27,41,0.3)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                  <h4>Session Preferences</h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '8px', lineHeight: 1.4 }}>
+                    Cognitive preferences compiled for this session:
+                  </p>
+                  <pre style={{ margin: '12px 0 0 0', fontSize: '0.75rem', color: '#818cf8', fontFamily: 'monospace' }}>
+                    {JSON.stringify({
+                      operator_preference: "VRL Travels",
+                      sorting_preference: "highest_rating",
+                      routing_source: "Google Distance Matrix API"
+                    }, null, 2)}
+                  </pre>
+                </div>
+              </div>
+
+              <div>
+                <h3>System Prompt Editor Preview</h3>
+                <br/>
+                <div style={{ background: '#090a0f', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '24px', position: 'relative' }}>
+                  <span style={{ position: 'absolute', top: '12px', right: '20px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    READ ONLY
+                  </span>
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.85rem', color: 'var(--text-primary)', fontFamily: 'monospace', lineHeight: 1.5 }}>
+                    {promptContent || 'Loading prompt content...'}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: AGENT REGISTRY */}
           {activeTab === 'agents' && (
             <div className="agent-grid">
               {studioDetails.agents.map(agent => (
@@ -854,7 +982,7 @@ function App() {
             </div>
           )}
 
-          {/* TAB 5: PROVIDER ROUTING TELEMETRY */}
+          {/* TAB 6: PROVIDER ROUTING TELEMETRY */}
           {activeTab === 'providers' && (
             <div style={{ background: 'rgba(25, 27, 41, 0.3)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '24px' }}>
               <h3 style={{ marginBottom: '16px' }}>Transit Vendor Routing Details</h3>
